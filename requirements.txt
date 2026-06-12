@@ -1,0 +1,3 @@
+requests>=2.31
+# tomllib is stdlib on Python 3.11+. On 3.10 and older, uncomment:
+# tomli>=2.0; python_version < "3.11"

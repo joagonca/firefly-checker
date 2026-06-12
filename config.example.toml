@@ -1,0 +1,19 @@
+# Copy to config.toml and fill in. Keep config.toml private:  chmod 600 config.toml
+# Secrets (pat / token) can instead be supplied via env vars FIREFLY_PAT / HA_TOKEN,
+# which override anything set here.
+
+[firefly]
+url = "https://firefly.example.com"   # base URL, no trailing /api
+pat = "eyJ0eXAiOi..."                  # Personal Access Token (Options > Profile > OAuth)
+account_id = "12"                      # the credit-card account's numeric ID
+
+[home_assistant]
+url = "https://homeassistant.example.com"   # base URL
+token = "eyJ...long-lived..."               # long-lived access token (Profile > Security)
+notify_service = "mobile_app_my_phone"      # the part after notify.  e.g. notify.mobile_app_my_phone
+
+[behaviour]
+target = 250.0          # monthly minimum spend
+currency = "EUR"        # only transactions in this currency are counted
+timezone = "localtime"  # or an IANA name like "Europe/Lisbon"
+state_path = "~/.local/state/firefly-checker/state.json"
