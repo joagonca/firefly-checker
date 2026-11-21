@@ -1,7 +1,10 @@
-"""Home Assistant notification client.
+"""ntfy notification client.
 
-Calls the HA REST API to invoke a notify service:
-``POST {HA_URL}/api/services/notify/<service>`` with a long-lived access token.
+Publishes via ntfy's JSON API: ``POST {NTFY_URL}/`` with a body like
+``{"topic": ..., "title": ..., "message": ..., "priority": 1-5, "tags": [...]}``.
+
+JSON publishing is used instead of the header-based API because titles contain emoji,
+which can't be sent in HTTP headers. Works with https://ntfy.sh or a self-hosted server.
 """
 
 from __future__ import annotations
@@ -12,34 +15,63 @@ _TIMEOUT = 30
 
 
 class NotifyError(Exception):
-    """Raised when Home Assistant rejects or cannot receive the notification."""
+    """Raised when the ntfy server rejects or cannot receive the notification."""
 
 
-class HomeAssistantNotifier:
-    def __init__(self, base_url: str, token: str, service: str):
+class NtfyNotifier:
+    def __init__(self, base_url: str, topic: str, token: str | None = None):
         self._base = base_url.rstrip("/")
-        # Accept "notify.mobile_app_x", "mobile_app_x", or "notify/mobile_app_x".
-        self._service = service.replace("notify.", "").replace("notify/", "").strip("/")
-        self._token = token
+        self._topic = topic.strip("/")
+        self._token = token or None
 
-    def send(self, title: str, message: str) -> None:
-        url = f"{self._base}/api/services/notify/{self._service}"
+    def build_payload(
+        self,
+        title: str,
+        message: str,
+        *,
+        priority: int = 3,
+        tags: list[str] | None = None,
+        click: str | None = None,
+    ) -> dict:
+        payload: dict = {
+            "topic": self._topic,
+            "title": title,
+            "message": message,
+            "priority": int(priority),
+        }
+        if tags:
+            payload["tags"] = list(tags)
+        if click:
+            payload["click"] = click
+        return payload
+
+    def _headers(self) -> dict:
+        headers = {"Content-Type": "application/json"}
+        if self._token:
+            headers["Authorization"] = f"Bearer {self._token}"
+        return headers
+
+    def send(
+        self,
+        title: str,
+        message: str,
+        *,
+        priority: int = 3,
+        tags: list[str] | None = None,
+        click: str | None = None,
+    ) -> None:
+        payload = self.build_payload(title, message, priority=priority, tags=tags, click=click)
         try:
             resp = requests.post(
-                url,
-                headers={
-                    "Authorization": f"Bearer {self._token}",
-                    "Content-Type": "application/json",
-                },
-                json={"title": title, "message": message},
-                timeout=_TIMEOUT,
+                f"{self._base}/", headers=self._headers(), json=payload, timeout=_TIMEOUT
             )
         except requests.RequestException as exc:
-            raise NotifyError(f"Request to Home Assistant failed: {exc}") from exc
-        if resp.status_code == 401:
-            raise NotifyError("Home Assistant rejected the token (401 Unauthorized).")
+            raise NotifyError(f"Request to ntfy failed: {exc}") from exc
+        if resp.status_code in (401, 403):
+            raise NotifyError(
+                f"ntfy rejected the request (HTTP {resp.status_code}) — check the token/topic access."
+            )
         if not resp.ok:
             raise NotifyError(
-                f"Home Assistant returned HTTP {resp.status_code} for notify/"
-                f"{self._service}: {resp.text[:200]}"
+                f"ntfy returned HTTP {resp.status_code} for topic {self._topic}: {resp.text[:200]}"
             )

@@ -1,5 +1,5 @@
 # Copy to config.toml and fill in. Keep config.toml private:  chmod 600 config.toml
-# Secrets (pat / token) can instead be supplied via env vars FIREFLY_PAT / HA_TOKEN,
+# Secrets (pat / token) can instead be supplied via env vars FIREFLY_PAT / NTFY_TOKEN,
 # which override anything set here.
 
 [firefly]
@@ -7,10 +7,10 @@ url = "https://firefly.example.com"   # base URL, no trailing /api
 pat = "eyJ0eXAiOi..."                  # Personal Access Token (Options > Profile > OAuth)
 account_id = "12"                      # the credit-card account's numeric ID
 
-[home_assistant]
-url = "https://homeassistant.example.com"   # base URL
-token = "eyJ...long-lived..."               # long-lived access token (Profile > Security)
-notify_service = "mobile_app_my_phone"      # the part after notify.  e.g. notify.mobile_app_my_phone
+[ntfy]
+url = "https://ntfy.sh"              # or your self-hosted ntfy server
+topic = "ff-checker-CHANGE-ME-random"  # use a long random name: public topics are readable by anyone who knows it
+token = ""                           # optional access token (protected topics); env NTFY_TOKEN overrides
 
 [behaviour]
 target = 250.0          # monthly minimum spend

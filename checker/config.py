@@ -5,7 +5,7 @@ given via ``FIREFLY_CHECKER_CONFIG``). Secrets may be supplied via the file or, 
 overridden by environment variables so they never have to live on disk:
 
     FIREFLY_PAT   overrides [firefly].pat
-    HA_TOKEN      overrides [home_assistant].token
+    NTFY_TOKEN    overrides [ntfy].token (optional — only needed for protected topics)
 """
 
 from __future__ import annotations
@@ -25,6 +25,7 @@ class ConfigError(Exception):
 
 
 DEFAULT_STATE_PATH = "~/.local/state/firefly-checker/state.json"
+DEFAULT_NTFY_URL = "https://ntfy.sh"
 
 
 @dataclass(frozen=True)
@@ -33,10 +34,10 @@ class Config:
     firefly_url: str
     firefly_pat: str
     account_id: str
-    # Home Assistant
-    ha_url: str
-    ha_token: str
-    ha_notify_service: str
+    # ntfy
+    ntfy_topic: str
+    ntfy_url: str = DEFAULT_NTFY_URL
+    ntfy_token: str = ""
     # Behaviour
     target: float = 250.0
     currency: str = "EUR"
@@ -77,23 +78,21 @@ def load(path: Path | None = None) -> Config:
         raw = tomllib.load(fh)
 
     firefly = raw.get("firefly", {})
-    ha = raw.get("home_assistant", {})
+    ntfy = raw.get("ntfy", {})
     behaviour = raw.get("behaviour", {})
 
     pat = os.environ.get("FIREFLY_PAT") or firefly.get("pat", "")
-    token = os.environ.get("HA_TOKEN") or ha.get("token", "")
+    ntfy_token = os.environ.get("NTFY_TOKEN") or ntfy.get("token", "")
     if not str(pat).strip():
         raise ConfigError("Missing Firefly PAT: set [firefly].pat or env FIREFLY_PAT")
-    if not str(token).strip():
-        raise ConfigError("Missing HA token: set [home_assistant].token or env HA_TOKEN")
 
     return Config(
         firefly_url=_require(firefly, "firefly", "url").rstrip("/"),
         firefly_pat=str(pat).strip(),
         account_id=_require(firefly, "firefly", "account_id"),
-        ha_url=_require(ha, "home_assistant", "url").rstrip("/"),
-        ha_token=str(token).strip(),
-        ha_notify_service=_require(ha, "home_assistant", "notify_service"),
+        ntfy_topic=_require(ntfy, "ntfy", "topic"),
+        ntfy_url=str(ntfy.get("url") or DEFAULT_NTFY_URL).strip().rstrip("/"),
+        ntfy_token=str(ntfy_token).strip(),
         target=float(behaviour.get("target", 250.0)),
         currency=str(behaviour.get("currency", "EUR")).strip(),
         timezone=str(behaviour.get("timezone", "localtime")).strip(),

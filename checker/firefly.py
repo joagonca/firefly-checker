@@ -7,7 +7,7 @@ only query ``type=withdrawal`` and ``type=deposit``.
 
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, timedelta
 
 import requests
 
@@ -16,6 +16,16 @@ _TIMEOUT = 30
 
 class FireflyError(Exception):
     """Raised on any Firefly API failure (network, auth, bad account, etc.)."""
+
+
+def _in_range(split: dict, start: date, end: date) -> bool:
+    """True if the split's date (``YYYY-MM-DD...``) falls within ``[start, end]`` inclusive."""
+    raw = str(split.get("date", ""))[:10]
+    try:
+        d = date.fromisoformat(raw)
+    except ValueError:
+        return False
+    return start <= d <= end
 
 
 class FireflyClient:
@@ -62,10 +72,14 @@ class FireflyClient:
         We do NOT rely on the endpoint's ``type`` query parameter — on this endpoint it is
         unreliable (it can return withdrawals even when asked for deposits). Instead we
         fetch everything once and classify by each split's own ``type`` field.
+
+        Firefly requires ``start`` to be strictly before ``end`` (it returns HTTP 422 when
+        they are equal, e.g. on the 1st of the month). So we ask for one extra day and drop
+        anything outside ``[start, end]`` client-side via :func:`_in_range`.
         """
         params = {
             "start": start.isoformat(),
-            "end": end.isoformat(),
+            "end": (end + timedelta(days=1)).isoformat(),
             "type": "all",
             "limit": 100,
             "page": 1,
@@ -74,7 +88,8 @@ class FireflyClient:
             payload = self._get(f"/api/v1/accounts/{account_id}/transactions", params=dict(params))
             for group in payload.get("data", []):
                 for split in group.get("attributes", {}).get("transactions", []):
-                    yield split
+                    if _in_range(split, start, end):
+                        yield split
             pagination = payload.get("meta", {}).get("pagination", {})
             current = pagination.get("current_page", params["page"])
             last = pagination.get("total_pages", current)
